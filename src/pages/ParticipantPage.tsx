@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   getParticipantBySlug,
+  getParticipants,
   getTodayEvents,
   logEvent,
   softDeleteEvent,
@@ -9,9 +10,10 @@ import {
   getEvents,
   calculateStats,
 } from '@/lib/queries';
-import { getTodayLocal, getNowLocalTime, isBeforeStart, isAfterEnd } from '@/lib/dates';
+import { getTodayLocal, getNowLocalTime, isBeforeStart, isAfterEnd, getDaysLeftInYear, START_DATE, END_DATE } from '@/lib/dates';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import Heatmap from '@/components/Heatmap';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { Trash2, Pencil, Check, Leaf, Candy } from 'lucide-react';
@@ -19,8 +21,9 @@ import { Trash2, Pencil, Check, Leaf, Candy } from 'lucide-react';
 export default function ParticipantPage() {
   const { slug } = useParams<{ slug: string }>();
   const [participant, setParticipant] = useState<any>(null);
+  const [allParticipants, setAllParticipants] = useState<any[]>([]);
   const [todayEvents, setTodayEvents] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [allStats, setAllStats] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [editingCharity, setEditingCharity] = useState(false);
@@ -30,13 +33,19 @@ export default function ParticipantPage() {
 
   const refresh = useCallback(async () => {
     if (!participant) return;
-    const [today, allEvents] = await Promise.all([
+    const [today, allEvents, parts] = await Promise.all([
       getTodayEvents(participant.id),
       getEvents(),
+      getParticipants(),
     ]);
     setTodayEvents(today);
+    setAllParticipants(parts);
     const todayLocal = getTodayLocal();
-    setStats(calculateStats(allEvents, participant.id, todayLocal));
+    const statsMap: Record<string, any> = {};
+    for (const p of parts) {
+      statsMap[p.id] = calculateStats(allEvents, p.id, todayLocal);
+    }
+    setAllStats(statsMap);
     setFreeDayUsedToday(
       today.some((e: any) => e.type === 'FREE_DAY')
     );
@@ -66,7 +75,8 @@ export default function ParticipantPage() {
       toast.info('Free Day already used today.');
       return;
     }
-    if (type === 'FREE_DAY' && stats && stats.freeDaysRemaining <= 0) {
+    const myStats = allStats[participant.id];
+    if (type === 'FREE_DAY' && myStats && myStats.freeDaysRemaining <= 0) {
       toast.info('No Free Days remaining.');
       return;
     }
@@ -180,37 +190,99 @@ export default function ParticipantPage() {
         </Button>
       </div>
 
-      {/* Quick stats */}
-      {stats && (
-        <div className="grid grid-cols-2 gap-3">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-primary">{stats.freeDaysRemaining}</p>
-              <p className="text-xs text-muted-foreground mt-1">Free Days Left</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold">{stats.streak}</p>
-              <p className="text-xs text-muted-foreground mt-1">Day Streak 🔥</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-destructive">${stats.donationsOwed}</p>
-              <p className="text-xs text-muted-foreground mt-1">Owed to Charity</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold">
-                {stats.daysSinceLastSugar !== null ? stats.daysSinceLastSugar : '—'}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">Days Since Sugar</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Dashboard stats */}
+      {allParticipants.length > 0 && Object.keys(allStats).length > 0 && (() => {
+        const daysLeft = getDaysLeftInYear();
+        const otherParticipant = allParticipants.find((p: any) => p.id !== participant.id);
+        const orderedParticipants = [
+          participant,
+          ...allParticipants.filter((p: any) => p.id !== participant.id),
+        ];
+
+        return (
+          <div className="space-y-6">
+            {/* Global cards */}
+            <div className="grid grid-cols-2 gap-3">
+              {otherParticipant && allStats[participant.id] && allStats[otherParticipant.id] && (
+                <>
+                  <Card className="border-destructive/20">
+                    <CardContent className="p-4 text-center">
+                      <p className="text-2xl font-bold text-destructive">${allStats[participant.id].donationsOwed}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {participant.display_name} owes<br />{otherParticipant.charity_name}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-destructive/20">
+                    <CardContent className="p-4 text-center">
+                      <p className="text-2xl font-bold text-destructive">${allStats[otherParticipant.id].donationsOwed}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {otherParticipant.display_name} owes<br />{participant.charity_name}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+              <Card className="col-span-2">
+                <CardContent className="p-4 text-center">
+                  <p className="text-3xl font-bold text-primary">{daysLeft}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Days left in 2026</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Per-participant sections */}
+            {orderedParticipants.map((p: any) => {
+              const s = allStats[p.id];
+              if (!s) return null;
+              return (
+                <div key={p.id} className="space-y-3">
+                  <h2 className="text-lg font-bold flex items-center gap-2">
+                    {p.display_name}
+                    <span className="text-sm font-normal text-muted-foreground">({p.charity_name})</span>
+                  </h2>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <p className="text-2xl font-bold text-primary">{s.freeDaysRemaining}</p>
+                        <p className="text-xs text-muted-foreground">Free Days Left</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <p className="text-2xl font-bold">{s.freeDaysUsed}</p>
+                        <p className="text-xs text-muted-foreground">Free Days Used</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <p className="text-2xl font-bold">{s.streak}</p>
+                        <p className="text-xs text-muted-foreground">Streak 🔥</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <p className="text-2xl font-bold">
+                          {s.daysSinceLastSugar !== null ? s.daysSinceLastSugar : '—'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Days Since Sugar</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground mb-2 font-medium uppercase tracking-wide">Heatmap</p>
+                      <Heatmap data={s.heatmapData} startDate={START_DATE} endDate={END_DATE} />
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Today's log */}
       <div>
