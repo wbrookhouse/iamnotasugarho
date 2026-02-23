@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom';
 import {
   getParticipantBySlug,
   getParticipants,
-  getTodayEvents,
   logEvent,
   softDeleteEvent,
   updateCharityName,
@@ -22,23 +21,22 @@ export default function ParticipantPage() {
   const { slug } = useParams<{ slug: string }>();
   const [participant, setParticipant] = useState<any>(null);
   const [allParticipants, setAllParticipants] = useState<any[]>([]);
-  const [todayEvents, setTodayEvents] = useState<any[]>([]);
+  
   const [allStats, setAllStats] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [editingCharity, setEditingCharity] = useState(false);
   const [charityInput, setCharityInput] = useState('');
-  const [freeDayUsedToday, setFreeDayUsedToday] = useState(false);
+  const [freeDayUsedTodayMap, setFreeDayUsedTodayMap] = useState<Record<string, boolean>>({});
+  const [allTodayEvents, setAllTodayEvents] = useState<any[]>([]);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   const refresh = useCallback(async () => {
     if (!participant) return;
-    const [today, allEvents, parts] = await Promise.all([
-      getTodayEvents(participant.id),
+    const [allEvents, parts] = await Promise.all([
       getEvents(),
       getParticipants(),
     ]);
-    setTodayEvents(today);
     setAllParticipants(parts);
     const todayLocal = getTodayLocal();
     const statsMap: Record<string, any> = {};
@@ -46,9 +44,20 @@ export default function ParticipantPage() {
       statsMap[p.id] = calculateStats(allEvents, p.id, todayLocal);
     }
     setAllStats(statsMap);
-    setFreeDayUsedToday(
-      today.some((e: any) => e.type === 'FREE_DAY')
+
+    // Fetch today events for all participants
+    const todayEventsAll = allEvents.filter(
+      (e: any) => e.date_local === todayLocal && !e.deleted_at
     );
+    setAllTodayEvents(todayEventsAll);
+
+    const fdMap: Record<string, boolean> = {};
+    for (const p of parts) {
+      fdMap[p.id] = todayEventsAll.some(
+        (e: any) => e.participant_id === p.id && e.type === 'FREE_DAY'
+      );
+    }
+    setFreeDayUsedTodayMap(fdMap);
   }, [participant]);
 
   useEffect(() => {
@@ -70,18 +79,18 @@ export default function ParticipantPage() {
     if (participant) refresh();
   }, [participant, refresh]);
 
-  const handleLog = async (type: 'SUGAR' | 'FREE_DAY') => {
-    if (type === 'FREE_DAY' && freeDayUsedToday) {
+  const handleLog = async (targetId: string, type: 'SUGAR' | 'FREE_DAY') => {
+    if (type === 'FREE_DAY' && freeDayUsedTodayMap[targetId]) {
       toast.info('Free Day already used today.');
       return;
     }
-    const myStats = allStats[participant.id];
-    if (type === 'FREE_DAY' && myStats && myStats.freeDaysRemaining <= 0) {
+    const stats = allStats[targetId];
+    if (type === 'FREE_DAY' && stats && stats.freeDaysRemaining <= 0) {
       toast.info('No Free Days remaining.');
       return;
     }
     try {
-      const event = await logEvent(participant.id, type);
+      const event = await logEvent(targetId, type);
       await refresh();
 
       const toastId = toast('Logged. Undo?', {
@@ -125,36 +134,16 @@ export default function ParticipantPage() {
   const afterEnd = isAfterEnd();
   const disabled = beforeStart || afterEnd;
 
+  const orderedParticipants = [
+    participant,
+    ...allParticipants.filter((p: any) => p.id !== participant.id),
+  ];
+
   return (
     <div className="min-h-screen p-4 max-w-md mx-auto space-y-6 pb-20">
       {/* Header */}
-      <div className="pt-4">
-        <h1 className="text-2xl font-bold">{participant.display_name}</h1>
-        <div className="flex items-center gap-2 mt-1">
-          {editingCharity ? (
-            <div className="flex items-center gap-2 flex-1">
-              <Input
-                value={charityInput}
-                onChange={(e) => setCharityInput(e.target.value)}
-                placeholder="Enter your charity name…"
-                className="h-8 text-sm"
-              />
-              <Button variant="ghost" size="sm" onClick={handleSaveCharity}>
-                <Check className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              Charity: <span className="font-medium text-foreground">{participant.charity_name}</span>
-              <button
-                onClick={() => setEditingCharity(true)}
-                className="ml-2 inline-flex text-muted-foreground hover:text-foreground"
-              >
-                <Pencil className="h-3 w-3" />
-              </button>
-            </p>
-          )}
-        </div>
+      <div className="pt-4 text-center">
+        <h1 className="text-2xl font-bold">🍬 Sugar-Free Challenge</h1>
       </div>
 
       {/* Status banner */}
@@ -169,35 +158,68 @@ export default function ParticipantPage() {
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="grid grid-cols-2 gap-3">
-        <Button
-          onClick={() => handleLog('FREE_DAY')}
-          disabled={disabled}
-          className="h-20 text-base font-semibold bg-success hover:bg-success/90 text-success-foreground flex flex-col gap-1"
-        >
-          <Leaf className="h-6 w-6" />
-          Report Free Day
-        </Button>
-        <Button
-          onClick={() => handleLog('SUGAR')}
-          disabled={disabled}
-          variant="destructive"
-          className="h-20 text-base font-semibold flex flex-col gap-1"
-        >
-          <Candy className="h-6 w-6" />
-          Report Sugar Item
-        </Button>
+      {/* Action buttons for BOTH participants */}
+      {orderedParticipants.map((p: any) => (
+        <div key={p.id} className="space-y-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold">{p.display_name}</h2>
+            {p.id === participant.id && (
+              <span className="text-xs text-muted-foreground">(you)</span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              onClick={() => handleLog(p.id, 'FREE_DAY')}
+              disabled={disabled}
+              className="h-16 text-sm font-semibold bg-success hover:bg-success/90 text-success-foreground flex flex-col gap-1"
+            >
+              <Leaf className="h-5 w-5" />
+              Report Free Day
+            </Button>
+            <Button
+              onClick={() => handleLog(p.id, 'SUGAR')}
+              disabled={disabled}
+              variant="destructive"
+              className="h-16 text-sm font-semibold flex flex-col gap-1"
+            >
+              <Candy className="h-5 w-5" />
+              Report Sugar Item
+            </Button>
+          </div>
+        </div>
+      ))}
+
+      {/* Charity edit for page owner */}
+      <div className="flex items-center gap-2">
+        {editingCharity ? (
+          <div className="flex items-center gap-2 flex-1">
+            <Input
+              value={charityInput}
+              onChange={(e) => setCharityInput(e.target.value)}
+              placeholder="Enter your charity name…"
+              className="h-8 text-sm"
+            />
+            <Button variant="ghost" size="sm" onClick={handleSaveCharity}>
+              <Check className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            Your charity: <span className="font-medium text-foreground">{participant.charity_name}</span>
+            <button
+              onClick={() => setEditingCharity(true)}
+              className="ml-2 inline-flex text-muted-foreground hover:text-foreground"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          </p>
+        )}
       </div>
 
       {/* Dashboard stats */}
       {allParticipants.length > 0 && Object.keys(allStats).length > 0 && (() => {
         const daysLeft = getDaysLeftInYear();
         const otherParticipant = allParticipants.find((p: any) => p.id !== participant.id);
-        const orderedParticipants = [
-          participant,
-          ...allParticipants.filter((p: any) => p.id !== participant.id),
-        ];
 
         return (
           <div className="space-y-6">
@@ -284,45 +306,51 @@ export default function ParticipantPage() {
         );
       })()}
 
-      {/* Today's log */}
+      {/* Today's log - all participants */}
       <div>
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-2">
           Today's Log
         </h2>
-        {todayEvents.length === 0 ? (
+        {allTodayEvents.length === 0 ? (
           <p className="text-sm text-muted-foreground">No entries today.</p>
         ) : (
           <div className="space-y-2">
-            {todayEvents.map((e: any) => (
-              <div
-                key={e.id}
-                className="flex items-center justify-between bg-card p-3 rounded-lg border"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-block w-2 h-2 rounded-full ${
-                      e.type === 'FREE_DAY' ? 'bg-success' : 'bg-destructive'
-                    }`}
-                  />
-                  <span className="text-sm font-medium">
-                    {e.type === 'FREE_DAY' ? 'Free Day' : 'Sugar Item'}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(e.ts_utc).toLocaleTimeString('en-US', {
-                      timeZone: 'America/Halifax',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                </div>
-                <button
-                  onClick={() => handleDelete(e.id)}
-                  className="text-muted-foreground hover:text-destructive p-1"
+            {allTodayEvents.map((e: any) => {
+              const owner = allParticipants.find((p: any) => p.id === e.participant_id);
+              return (
+                <div
+                  key={e.id}
+                  className="flex items-center justify-between bg-card p-3 rounded-lg border"
                 >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-block w-2 h-2 rounded-full ${
+                        e.type === 'FREE_DAY' ? 'bg-success' : 'bg-destructive'
+                      }`}
+                    />
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {owner?.display_name}
+                    </span>
+                    <span className="text-sm font-medium">
+                      {e.type === 'FREE_DAY' ? 'Free Day' : 'Sugar Item'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(e.ts_utc).toLocaleTimeString('en-US', {
+                        timeZone: 'America/Halifax',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(e.id)}
+                    className="text-muted-foreground hover:text-destructive p-1"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
