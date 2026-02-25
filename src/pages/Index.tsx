@@ -34,7 +34,6 @@ function computeYtdPcts(
     (e) => e.participant_id === participantId && !e.deleted_at
   );
 
-  // Build per-day classification
   const freeDayDates = new Set(
     pEvents.filter((e) => e.type === 'FREE_DAY').map((e) => e.date_local)
   );
@@ -42,7 +41,6 @@ function computeYtdPcts(
     pEvents.filter((e) => e.type === 'SUGAR').map((e) => e.date_local)
   );
 
-  // Count days in window
   const start = new Date(startDate + 'T00:00:00');
   const end = new Date(todayLocal + 'T00:00:00');
   let totalDays = 0;
@@ -71,6 +69,37 @@ function computeYtdPcts(
     sugar: (redDays / totalDays) * 100,
     freeDay: (yellowDays / totalDays) * 100,
   };
+}
+
+/** Green-only streak: consecutive days with no SUGAR and no FREE_DAY, walking back from today. */
+function computeGreenStreak(
+  events: Event[],
+  participantId: string,
+  startDate: string,
+  todayLocal: string
+): number {
+  const pEvents = events.filter(
+    (e) => e.participant_id === participantId && !e.deleted_at
+  );
+  const freeDayDates = new Set(
+    pEvents.filter((e) => e.type === 'FREE_DAY').map((e) => e.date_local)
+  );
+  const sugarDates = new Set(
+    pEvents.filter((e) => e.type === 'SUGAR').map((e) => e.date_local)
+  );
+
+  let streak = 0;
+  const today = new Date(todayLocal + 'T00:00:00');
+  for (let i = 0; ; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const ds = d.toISOString().slice(0, 10);
+    if (ds < startDate) break;
+    // Only Green counts — no sugar AND no free day
+    if (freeDayDates.has(ds) || sugarDates.has(ds)) break;
+    streak++;
+  }
+  return streak;
 }
 
 
@@ -170,6 +199,9 @@ const Index = () => {
   const pcts1 = useMemo(() => p1 ? computeYtdPcts(allEvents, p1.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0, freeDay: 0 }, [allEvents, p1, todayLocal]);
   const pcts2 = useMemo(() => p2 ? computeYtdPcts(allEvents, p2.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0, freeDay: 0 }, [allEvents, p2, todayLocal]);
 
+  const streak1 = useMemo(() => p1 ? computeGreenStreak(allEvents, p1.id, START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
+  const streak2 = useMemo(() => p2 ? computeGreenStreak(allEvents, p2.id, START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
+
 
   const freeDayUsedToday1 = useMemo(() => p1 ? allEvents.some((e) => e.participant_id === p1.id && e.date_local === todayLocal && e.type === 'FREE_DAY' && !e.deleted_at) : false, [allEvents, p1, todayLocal]);
   const freeDayUsedToday2 = useMemo(() => p2 ? allEvents.some((e) => e.participant_id === p2.id && e.date_local === todayLocal && e.type === 'FREE_DAY' && !e.deleted_at) : false, [allEvents, p2, todayLocal]);
@@ -244,6 +276,7 @@ const Index = () => {
             otherName={p2.display_name}
             ownPcts={pcts1}
             otherPcts={pcts2}
+            streak={streak1}
             freeDayUsedToday={freeDayUsedToday1}
             freeDaysRemaining={stats1.freeDaysRemaining}
             disabled={buttonsDisabled}
@@ -257,6 +290,7 @@ const Index = () => {
             otherName={p1.display_name}
             ownPcts={pcts2}
             otherPcts={pcts1}
+            streak={streak2}
             freeDayUsedToday={freeDayUsedToday2}
             freeDaysRemaining={stats2.freeDaysRemaining}
             disabled={buttonsDisabled}

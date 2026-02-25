@@ -9,6 +9,7 @@ interface ParticipantPanelProps {
   otherName: string;
   ownPcts: { sugarFree: number; sugar: number; freeDay: number };
   otherPcts: { sugarFree: number; sugar: number; freeDay: number };
+  streak: number;
   freeDayUsedToday: boolean;
   freeDaysRemaining: number;
   disabled: boolean;
@@ -23,6 +24,7 @@ export default function ParticipantPanel({
   otherName,
   ownPcts,
   otherPcts,
+  streak,
   freeDayUsedToday,
   freeDaysRemaining,
   disabled,
@@ -62,6 +64,14 @@ export default function ParticipantPanel({
         ownPcts={ownPcts}
         otherPcts={otherPcts}
       />
+
+      <p
+        className="text-sm text-muted-foreground"
+        aria-live="polite"
+        aria-label={`${name} sugar-free streak: ${streak} day${streak !== 1 ? 's' : ''}`}
+      >
+        🔥 Sugar‑Free Streak: <strong className="text-foreground">{streak}</strong> day{streak !== 1 ? 's' : ''}
+      </p>
 
       {disabled ? (
         <p className="text-sm text-muted-foreground text-center py-2">{disabledMessage}</p>

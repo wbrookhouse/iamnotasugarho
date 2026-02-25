@@ -5,10 +5,8 @@ interface VsRowsProps {
   otherPcts: { sugarFree: number; sugar: number; freeDay: number };
 }
 
-function DeltaPill({ delta, winnerIsHigher }: { delta: number; winnerIsHigher: boolean }) {
+function DeltaPill({ delta, winnerIsHigher, ownName, category }: { delta: number; winnerIsHigher: boolean; ownName: string; category: string }) {
   const isPositive = delta > 0;
-  // For sugar-free: higher is better, so positive = green
-  // For sugar/free-day: lower is better, so negative = green (inverted by caller)
   const isWinning = winnerIsHigher ? isPositive : !isPositive;
   const color = delta === 0
     ? 'bg-muted text-muted-foreground'
@@ -17,10 +15,17 @@ function DeltaPill({ delta, winnerIsHigher }: { delta: number; winnerIsHigher: b
       : 'bg-destructive text-destructive-foreground';
   const sign = delta > 0 ? '+' : '';
 
+  const absDelta = Math.abs(delta);
+  const ariaLabel = delta === 0
+    ? `${ownName} tied on ${category}`
+    : isWinning
+      ? `${ownName} leads ${category} by ${absDelta} percentage point${absDelta !== 1 ? 's' : ''}`
+      : `${ownName} trails on ${category} by ${absDelta} percentage point${absDelta !== 1 ? 's' : ''}`;
+
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}
-      aria-label={`${sign}${delta}% difference`}
+      aria-label={ariaLabel}
     >
       {sign}{delta}%
     </span>
@@ -73,7 +78,7 @@ export default function VsRows({ ownName, otherName, ownPcts, otherPcts }: VsRow
               ({otherName} {r.other}%)
             </span>
           </span>
-          <DeltaPill delta={r.delta} winnerIsHigher={r.higherIsWinner} />
+          <DeltaPill delta={r.delta} winnerIsHigher={r.higherIsWinner} ownName={ownName} category={r.ariaContext} />
         </div>
       ))}
     </div>
