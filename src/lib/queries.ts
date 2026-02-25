@@ -82,6 +82,14 @@ export async function softDeleteEvent(eventId: string) {
   if (error) throw error;
 }
 
+export async function hardDeleteEvent(eventId: string) {
+  const { error } = await supabase
+    .from('events')
+    .delete()
+    .eq('id', eventId);
+  if (error) throw error;
+}
+
 export async function updateCharityName(participantId: string, charityName: string) {
   const { error } = await supabase
     .from('participants')
