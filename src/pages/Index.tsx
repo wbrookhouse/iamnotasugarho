@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { getParticipants, getEvents, logEvent, hardDeleteEvent, calculateStats } from '@/lib/queries';
-import { getTodayLocal, START_DATE, END_DATE, isBeforeStart, isAfterEnd, getDaysLeftInYear } from '@/lib/dates';
+import { getTodayLocal, START_DATE, isBeforeStart, isAfterEnd, getDaysLeftInYear } from '@/lib/dates';
 import { Card, CardContent } from '@/components/ui/card';
-import SunburstWheel from '@/components/SunburstWheel';
+
 import ParticipantPanel from '@/components/ParticipantPanel';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -73,36 +73,6 @@ function computeYtdPcts(
   };
 }
 
-function buildDayMap(events: Event[], participantId: string) {
-  const pEvents = events.filter(
-    (e) => e.participant_id === participantId && !e.deleted_at
-  );
-  const freeDayDates = new Set(
-    pEvents.filter((e) => e.type === 'FREE_DAY').map((e) => e.date_local)
-  );
-  const sugarCountByDate: Record<string, number> = {};
-  pEvents
-    .filter((e) => e.type === 'SUGAR')
-    .forEach((e) => {
-      sugarCountByDate[e.date_local] = (sugarCountByDate[e.date_local] || 0) + 1;
-    });
-
-  const result: Record<string, { date: string; sugarCount: number; hasFreDay: boolean; owedToday: number }> = {};
-
-  const allDates = new Set([...freeDayDates, ...Object.keys(sugarCountByDate)]);
-  allDates.forEach((ds) => {
-    const sc = sugarCountByDate[ds] || 0;
-    const hasFD = freeDayDates.has(ds);
-    result[ds] = {
-      date: ds,
-      sugarCount: sc,
-      hasFreDay: hasFD,
-      owedToday: hasFD ? 0 : sc * 5,
-    };
-  });
-
-  return result;
-}
 
 const Index = () => {
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -200,8 +170,6 @@ const Index = () => {
   const pcts1 = useMemo(() => p1 ? computeYtdPcts(allEvents, p1.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0, freeDay: 0 }, [allEvents, p1, todayLocal]);
   const pcts2 = useMemo(() => p2 ? computeYtdPcts(allEvents, p2.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0, freeDay: 0 }, [allEvents, p2, todayLocal]);
 
-  const dayMap1 = useMemo(() => p1 ? buildDayMap(allEvents, p1.id) : {}, [allEvents, p1]);
-  const dayMap2 = useMemo(() => p2 ? buildDayMap(allEvents, p2.id) : {}, [allEvents, p2]);
 
   const freeDayUsedToday1 = useMemo(() => p1 ? allEvents.some((e) => e.participant_id === p1.id && e.date_local === todayLocal && e.type === 'FREE_DAY' && !e.deleted_at) : false, [allEvents, p1, todayLocal]);
   const freeDayUsedToday2 = useMemo(() => p2 ? allEvents.some((e) => e.participant_id === p2.id && e.date_local === todayLocal && e.type === 'FREE_DAY' && !e.deleted_at) : false, [allEvents, p2, todayLocal]);
@@ -265,23 +233,6 @@ const Index = () => {
         </div>
       )}
 
-      {/* Dual Sunburst Wheels */}
-      {p1 && p2 && (
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-          <SunburstWheel
-            name={p1.display_name}
-            todayLocal={todayLocal}
-            endDate={END_DATE}
-            dayMap={dayMap1}
-          />
-          <SunburstWheel
-            name={p2.display_name}
-            todayLocal={todayLocal}
-            endDate={END_DATE}
-            dayMap={dayMap2}
-          />
-        </div>
-      )}
 
       {/* Participant Panels */}
       {p1 && p2 && stats1 && stats2 && (
