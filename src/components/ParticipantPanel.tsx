@@ -1,6 +1,7 @@
 import { useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import VsRows from '@/components/VsRows';
+import StreakCoinCard from '@/components/StreakCoinCard';
 
 interface ParticipantPanelProps {
   name: string;
@@ -9,7 +10,10 @@ interface ParticipantPanelProps {
   otherName: string;
   ownPcts: { sugarFree: number; sugar: number; freeDay: number };
   otherPcts: { sugarFree: number; sugar: number; freeDay: number };
-  streak: number;
+  currentStreak: number;
+  bestStreak: number;
+  otherStreak: number;
+  initial: string;
   freeDayUsedToday: boolean;
   freeDaysRemaining: number;
   disabled: boolean;
@@ -24,7 +28,10 @@ export default function ParticipantPanel({
   otherName,
   ownPcts,
   otherPcts,
-  streak,
+  currentStreak,
+  bestStreak,
+  otherStreak,
+  initial,
   freeDayUsedToday,
   freeDaysRemaining,
   disabled,
@@ -58,20 +65,20 @@ export default function ParticipantPanel({
         </h3>
       </div>
 
+      <StreakCoinCard
+        name={name}
+        initial={initial}
+        currentStreak={currentStreak}
+        bestStreak={bestStreak}
+        otherStreak={otherStreak}
+      />
+
       <VsRows
         ownName={name}
         otherName={otherName}
         ownPcts={ownPcts}
         otherPcts={otherPcts}
       />
-
-      <p
-        className="text-sm text-muted-foreground"
-        aria-live="polite"
-        aria-label={`${name} sugar-free streak: ${streak} day${streak !== 1 ? 's' : ''}`}
-      >
-        🔥 Sugar‑Free Streak: <strong className="text-foreground">{streak}</strong> day{streak !== 1 ? 's' : ''}
-      </p>
 
       {disabled ? (
         <p className="text-sm text-muted-foreground text-center py-2">{disabledMessage}</p>

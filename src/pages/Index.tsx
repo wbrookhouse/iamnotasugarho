@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { getParticipants, getEvents, logEvent, hardDeleteEvent, calculateStats } from '@/lib/queries';
 import { getTodayLocal, START_DATE, isBeforeStart, isAfterEnd, getDaysLeftInYear } from '@/lib/dates';
-import { Card, CardContent } from '@/components/ui/card';
+
 
 import ParticipantPanel from '@/components/ParticipantPanel';
+import StreakCoinCard from '@/components/StreakCoinCard';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -95,11 +96,44 @@ function computeGreenStreak(
     d.setDate(d.getDate() - i);
     const ds = d.toISOString().slice(0, 10);
     if (ds < startDate) break;
-    // Only Green counts — no sugar AND no free day
     if (freeDayDates.has(ds) || sugarDates.has(ds)) break;
     streak++;
   }
   return streak;
+}
+
+function computeBestStreak(
+  events: Event[],
+  participantId: string,
+  startDate: string,
+  todayLocal: string
+): number {
+  const pEvents = events.filter(
+    (e) => e.participant_id === participantId && !e.deleted_at
+  );
+  const freeDayDates = new Set(
+    pEvents.filter((e) => e.type === 'FREE_DAY').map((e) => e.date_local)
+  );
+  const sugarDates = new Set(
+    pEvents.filter((e) => e.type === 'SUGAR').map((e) => e.date_local)
+  );
+
+  let best = 0;
+  let current = 0;
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(todayLocal + 'T00:00:00');
+  const d = new Date(start);
+  while (d <= end) {
+    const ds = d.toISOString().slice(0, 10);
+    if (!freeDayDates.has(ds) && !sugarDates.has(ds)) {
+      current++;
+      if (current > best) best = current;
+    } else {
+      current = 0;
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return best;
 }
 
 
@@ -201,6 +235,8 @@ const Index = () => {
 
   const streak1 = useMemo(() => p1 ? computeGreenStreak(allEvents, p1.id, START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
   const streak2 = useMemo(() => p2 ? computeGreenStreak(allEvents, p2.id, START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
+  const best1 = useMemo(() => p1 ? computeBestStreak(allEvents, p1.id, START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
+  const best2 = useMemo(() => p2 ? computeBestStreak(allEvents, p2.id, START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
 
 
   const freeDayUsedToday1 = useMemo(() => p1 ? allEvents.some((e) => e.participant_id === p1.id && e.date_local === todayLocal && e.type === 'FREE_DAY' && !e.deleted_at) : false, [allEvents, p1, todayLocal]);
@@ -241,27 +277,14 @@ const Index = () => {
         </span>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Bar */}
       {p1 && p2 && stats1 && stats2 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Card>
-            <CardContent className="pt-4 pb-4 text-center">
-              <p className="text-xs text-muted-foreground">{p1.display_name} owes {p2.charity_name}</p>
-              <p className="text-2xl font-bold text-foreground">${stats1.donationsOwed}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4 text-center">
-              <p className="text-xs text-muted-foreground">{p2.display_name} owes {p1.charity_name}</p>
-              <p className="text-2xl font-bold text-foreground">${stats2.donationsOwed}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4 pb-4 text-center">
-              <p className="text-xs text-muted-foreground">Days left in 2026</p>
-              <p className="text-2xl font-bold text-foreground">{daysLeft}</p>
-            </CardContent>
-          </Card>
+        <div className="flex items-center justify-center gap-4 flex-wrap text-sm text-foreground">
+          <span>{p1.display_name} owes {p2.charity_name}: <strong>${stats1.donationsOwed}</strong></span>
+          <span className="text-muted-foreground">•</span>
+          <span>{p2.display_name} owes {p1.charity_name}: <strong>${stats2.donationsOwed}</strong></span>
+          <span className="text-muted-foreground">•</span>
+          <span><strong>{daysLeft}</strong> days left</span>
         </div>
       )}
 
@@ -276,7 +299,10 @@ const Index = () => {
             otherName={p2.display_name}
             ownPcts={pcts1}
             otherPcts={pcts2}
-            streak={streak1}
+            currentStreak={streak1}
+            bestStreak={best1}
+            otherStreak={streak2}
+            initial="K"
             freeDayUsedToday={freeDayUsedToday1}
             freeDaysRemaining={stats1.freeDaysRemaining}
             disabled={buttonsDisabled}
@@ -290,7 +316,10 @@ const Index = () => {
             otherName={p1.display_name}
             ownPcts={pcts2}
             otherPcts={pcts1}
-            streak={streak2}
+            currentStreak={streak2}
+            bestStreak={best2}
+            otherStreak={streak1}
+            initial="S"
             freeDayUsedToday={freeDayUsedToday2}
             freeDaysRemaining={stats2.freeDaysRemaining}
             disabled={buttonsDisabled}
