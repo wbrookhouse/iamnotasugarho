@@ -198,17 +198,8 @@ const Index = () => {
   const stats1 = useMemo(() => p1 ? calculateStats(allEvents, p1.id, todayLocal) : null, [allEvents, p1, todayLocal]);
   const stats2 = useMemo(() => p2 ? calculateStats(allEvents, p2.id, todayLocal) : null, [allEvents, p2, todayLocal]);
 
-  const pcts1 = useMemo(() => p1 ? computeYtdPcts(allEvents, p1.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0, freeDay: 0 }, [allEvents, p1, todayLocal]);
-  const pcts2 = useMemo(() => p2 ? computeYtdPcts(allEvents, p2.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0, freeDay: 0 }, [allEvents, p2, todayLocal]);
-
-  const streak1 = useMemo(() => p1 ? computeGreenStreak(allEvents, p1.id, START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
-  const streak2 = useMemo(() => p2 ? computeGreenStreak(allEvents, p2.id, START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
-  const best1 = useMemo(() => p1 ? computeBestStreak(allEvents, p1.id, START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
-  const best2 = useMemo(() => p2 ? computeBestStreak(allEvents, p2.id, START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
-
-
-  const freeDayUsedToday1 = useMemo(() => p1 ? allEvents.some((e) => e.participant_id === p1.id && e.date_local === todayLocal && e.type === 'FREE_DAY' && !e.deleted_at) : false, [allEvents, p1, todayLocal]);
-  const freeDayUsedToday2 = useMemo(() => p2 ? allEvents.some((e) => e.participant_id === p2.id && e.date_local === todayLocal && e.type === 'FREE_DAY' && !e.deleted_at) : false, [allEvents, p2, todayLocal]);
+  const pcts1 = useMemo(() => p1 ? computeYtdPcts(allEvents, p1.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0 }, [allEvents, p1, todayLocal]);
+  const pcts2 = useMemo(() => p2 ? computeYtdPcts(allEvents, p2.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0 }, [allEvents, p2, todayLocal]);
 
   if (loading) {
     return (
