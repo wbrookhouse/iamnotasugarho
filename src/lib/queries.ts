@@ -136,12 +136,11 @@ export async function markSetupComplete() {
 
 // Calculations
 export interface ParticipantStats {
-  freeDaysUsed: number;
-  freeDaysRemaining: number;
   donationsOwed: number;
+  sugarItemsThisPeriod: number;
+  freeSugarUsedThisPeriod: boolean;
   streak: number;
   daysSinceLastSugar: number | null;
-  heatmapData: Record<string, 'green' | 'red'>;
 }
 
 export function calculateStats(
@@ -150,36 +149,39 @@ export function calculateStats(
   todayLocal: string
 ): ParticipantStats {
   const pEvents = events.filter(
-    (e: any) => e.participant_id === participantId && !e.deleted_at
+    (e: any) => e.participant_id === participantId && !e.deleted_at && e.type === 'SUGAR'
   );
 
-  // Free day dates
-  const freeDayDates = new Set(
-    pEvents.filter((e: any) => e.type === 'FREE_DAY').map((e: any) => e.date_local)
-  );
+  // Group sugar events by 14-day period
+  const periodCounts = new Map<number, number>();
+  for (const e of pEvents) {
+    if (e.date_local < START_DATE) continue;
+    const period = get14DayPeriod(e.date_local);
+    periodCounts.set(period, (periodCounts.get(period) || 0) + 1);
+  }
 
-  // Sugar dates
-  const sugarDates = new Set(
-    pEvents.filter((e: any) => e.type === 'SUGAR').map((e: any) => e.date_local)
-  );
+  // Donations: for each period, first sugar is free, rest cost $5 each
+  let donationsOwed = 0;
+  for (const [, count] of periodCounts) {
+    if (count > 1) {
+      donationsOwed += (count - 1) * 5;
+    }
+  }
 
-  const freeDaysUsed = freeDayDates.size;
-  const freeDaysRemaining = Math.max(0, 10 - freeDaysUsed);
+  // Current period info
+  const currentPeriod = get14DayPeriod(todayLocal);
+  const sugarItemsThisPeriod = periodCounts.get(currentPeriod) || 0;
+  const freeSugarUsedThisPeriod = sugarItemsThisPeriod >= 1;
 
-  // Sugar items on non-free days
-  const sugarOnNonFreeDays = pEvents.filter(
-    (e: any) => e.type === 'SUGAR' && !freeDayDates.has(e.date_local)
-  ).length;
-  const donationsOwed = sugarOnNonFreeDays * 5;
-
-  // Streak: consecutive days with no sugar at all, ending today
+  // Streak: consecutive days with no sugar, ending today
+  const sugarDates = new Set(pEvents.map((e: any) => e.date_local));
   let streak = 0;
   const today = new Date(todayLocal + 'T00:00:00');
   for (let i = 0; ; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
     const ds = d.toISOString().slice(0, 10);
-    if (ds < '2026-02-24') break;
+    if (ds < START_DATE) break;
     if (sugarDates.has(ds)) break;
     streak++;
   }
@@ -196,16 +198,5 @@ export function calculateStats(
     daysSinceLastSugar = diff;
   }
 
-  // Heatmap
-  const heatmapData: Record<string, 'green' | 'red'> = {};
-  for (const d of freeDayDates) {
-    heatmapData[d] = 'green';
-  }
-  for (const d of sugarDates) {
-    if (!freeDayDates.has(d)) {
-      heatmapData[d] = 'red';
-    }
-  }
-
-  return { freeDaysUsed, freeDaysRemaining, donationsOwed, streak, daysSinceLastSugar, heatmapData };
+  return { donationsOwed, sugarItemsThisPeriod, freeSugarUsedThisPeriod, streak, daysSinceLastSugar };
 }
