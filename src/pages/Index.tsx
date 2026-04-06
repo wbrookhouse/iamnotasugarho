@@ -201,6 +201,11 @@ const Index = () => {
   const pcts1 = useMemo(() => p1 ? computeYtdPcts(allEvents, p1.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0 }, [allEvents, p1, todayLocal]);
   const pcts2 = useMemo(() => p2 ? computeYtdPcts(allEvents, p2.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0 }, [allEvents, p2, todayLocal]);
 
+  const streak1 = useMemo(() => p1 ? computeGreenStreak(allEvents, p1.id, START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
+  const streak2 = useMemo(() => p2 ? computeGreenStreak(allEvents, p2.id, START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
+  const best1 = useMemo(() => p1 ? computeBestStreak(allEvents, p1.id, START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
+  const best2 = useMemo(() => p2 ? computeBestStreak(allEvents, p2.id, START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
