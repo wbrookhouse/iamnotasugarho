@@ -65,21 +65,17 @@ function computeYtdPcts(
   };
 }
 
-/** Green-only streak: consecutive days with no SUGAR and no FREE_DAY, walking back from today. */
+/** Green-only streak: consecutive days with no SUGAR, walking back from today. */
 function computeGreenStreak(
   events: Event[],
   participantId: string,
   startDate: string,
   todayLocal: string
 ): number {
-  const pEvents = events.filter(
-    (e) => e.participant_id === participantId && !e.deleted_at
-  );
-  const freeDayDates = new Set(
-    pEvents.filter((e) => e.type === 'FREE_DAY').map((e) => e.date_local)
-  );
   const sugarDates = new Set(
-    pEvents.filter((e) => e.type === 'SUGAR').map((e) => e.date_local)
+    events.filter(
+      (e) => e.participant_id === participantId && !e.deleted_at && e.type === 'SUGAR'
+    ).map((e) => e.date_local)
   );
 
   let streak = 0;
@@ -89,7 +85,7 @@ function computeGreenStreak(
     d.setDate(d.getDate() - i);
     const ds = d.toISOString().slice(0, 10);
     if (ds < startDate) break;
-    if (freeDayDates.has(ds) || sugarDates.has(ds)) break;
+    if (sugarDates.has(ds)) break;
     streak++;
   }
   return streak;
@@ -101,14 +97,10 @@ function computeBestStreak(
   startDate: string,
   todayLocal: string
 ): number {
-  const pEvents = events.filter(
-    (e) => e.participant_id === participantId && !e.deleted_at
-  );
-  const freeDayDates = new Set(
-    pEvents.filter((e) => e.type === 'FREE_DAY').map((e) => e.date_local)
-  );
   const sugarDates = new Set(
-    pEvents.filter((e) => e.type === 'SUGAR').map((e) => e.date_local)
+    events.filter(
+      (e) => e.participant_id === participantId && !e.deleted_at && e.type === 'SUGAR'
+    ).map((e) => e.date_local)
   );
 
   let best = 0;
@@ -118,7 +110,7 @@ function computeBestStreak(
   const d = new Date(start);
   while (d <= end) {
     const ds = d.toISOString().slice(0, 10);
-    if (!freeDayDates.has(ds) && !sugarDates.has(ds)) {
+    if (!sugarDates.has(ds)) {
       current++;
       if (current > best) best = current;
     } else {
