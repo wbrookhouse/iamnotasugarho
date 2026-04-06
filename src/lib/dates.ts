@@ -3,6 +3,7 @@ import { differenceInCalendarDays, parseISO } from 'date-fns';
 
 export const TIMEZONE = 'America/Halifax';
 export const START_DATE = '2026-04-01';
+export const OVERALL_START_DATE = '2026-02-24';
 export const Q2_START = '2026-04-01';
 export const Q2_END = '2026-06-30';
 

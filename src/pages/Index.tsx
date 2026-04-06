@@ -1,10 +1,8 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { getParticipants, getEvents, logEvent, hardDeleteEvent, calculateStats } from '@/lib/queries';
-import { getTodayLocal, START_DATE, isBeforeStart, isAfterEnd, getDaysLeftInYear } from '@/lib/dates';
-
+import { getTodayLocal, START_DATE, OVERALL_START_DATE, isBeforeStart, isAfterEnd, getDaysLeftInYear } from '@/lib/dates';
 
 import ParticipantPanel from '@/components/ParticipantPanel';
-import StreakCoinCard from '@/components/StreakCoinCard';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -31,12 +29,10 @@ function computeYtdPcts(
   startDate: string,
   todayLocal: string
 ) {
-  const pEvents = events.filter(
-    (e) => e.participant_id === participantId && !e.deleted_at
-  );
-
   const sugarDates = new Set(
-    pEvents.filter((e) => e.type === 'SUGAR').map((e) => e.date_local)
+    events.filter(
+      (e) => e.participant_id === participantId && !e.deleted_at && e.type === 'SUGAR'
+    ).map((e) => e.date_local)
   );
 
   const start = new Date(startDate + 'T00:00:00');
@@ -65,11 +61,11 @@ function computeYtdPcts(
   };
 }
 
-/** Green-only streak: consecutive days with no SUGAR, walking back from today. */
-function computeGreenStreak(
+/** Consecutive sugar-free days walking back from today, stopping at floorDate */
+function computeStreak(
   events: Event[],
   participantId: string,
-  startDate: string,
+  floorDate: string,
   todayLocal: string
 ): number {
   const sugarDates = new Set(
@@ -84,13 +80,14 @@ function computeGreenStreak(
     const d = new Date(today);
     d.setDate(d.getDate() - i);
     const ds = d.toISOString().slice(0, 10);
-    if (ds < startDate) break;
+    if (ds < floorDate) break;
     if (sugarDates.has(ds)) break;
     streak++;
   }
   return streak;
 }
 
+/** Best consecutive sugar-free run from startDate to today */
 function computeBestStreak(
   events: Event[],
   participantId: string,
@@ -126,7 +123,6 @@ const Index = () => {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
-  const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const todayLocal = getTodayLocal();
   const beforeStart = isBeforeStart();
@@ -167,7 +163,6 @@ const Index = () => {
     try {
       const newEvent = await logEvent(participantId, type);
       
-      // Show undo toast
       const toastId = toast.success(`Logged Sugar Item for ${name}`, {
         duration: 10000,
         action: {
@@ -201,10 +196,17 @@ const Index = () => {
   const pcts1 = useMemo(() => p1 ? computeYtdPcts(allEvents, p1.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0 }, [allEvents, p1, todayLocal]);
   const pcts2 = useMemo(() => p2 ? computeYtdPcts(allEvents, p2.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0 }, [allEvents, p2, todayLocal]);
 
-  const streak1 = useMemo(() => p1 ? computeGreenStreak(allEvents, p1.id, START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
-  const streak2 = useMemo(() => p2 ? computeGreenStreak(allEvents, p2.id, START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
-  const best1 = useMemo(() => p1 ? computeBestStreak(allEvents, p1.id, START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
-  const best2 = useMemo(() => p2 ? computeBestStreak(allEvents, p2.id, START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
+  // Q2 streak (capped at Q2 start)
+  const q2Streak1 = useMemo(() => p1 ? computeStreak(allEvents, p1.id, START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
+  const q2Streak2 = useMemo(() => p2 ? computeStreak(allEvents, p2.id, START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
+
+  // Total streak (can span back into Q1)
+  const totalStreak1 = useMemo(() => p1 ? computeStreak(allEvents, p1.id, OVERALL_START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
+  const totalStreak2 = useMemo(() => p2 ? computeStreak(allEvents, p2.id, OVERALL_START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
+
+  // Best streak ever (since overall start)
+  const best1 = useMemo(() => p1 ? computeBestStreak(allEvents, p1.id, OVERALL_START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
+  const best2 = useMemo(() => p2 ? computeBestStreak(allEvents, p2.id, OVERALL_START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
 
   if (loading) {
     return (
@@ -228,6 +230,11 @@ const Index = () => {
         🍬 Sugar-Free Challenge 2026 — Q2
       </h1>
 
+      {/* Q1 Winner Banner */}
+      <div className="rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/30 px-4 py-2 text-center text-sm">
+        🏆 <strong>Q1 Winner: Kelsey!</strong> <span className="text-muted-foreground">Congrats on a great first quarter.</span>
+      </div>
+
       {/* Legend */}
       <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
@@ -249,7 +256,6 @@ const Index = () => {
         </div>
       )}
 
-
       {/* Participant Panels */}
       {p1 && p2 && stats1 && stats2 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -260,9 +266,10 @@ const Index = () => {
             otherName={p2.display_name}
             ownPcts={pcts1}
             otherPcts={pcts2}
-            currentStreak={streak1}
+            quarterStreak={q2Streak1}
+            totalStreak={totalStreak1}
             bestStreak={best1}
-            otherStreak={streak2}
+            otherQuarterStreak={q2Streak2}
             initial="K"
             sugarItemsThisPeriod={stats1.sugarItemsThisPeriod}
             disabled={buttonsDisabled}
@@ -276,9 +283,10 @@ const Index = () => {
             otherName={p1.display_name}
             ownPcts={pcts2}
             otherPcts={pcts1}
-            currentStreak={streak2}
+            quarterStreak={q2Streak2}
+            totalStreak={totalStreak2}
             bestStreak={best2}
-            otherStreak={streak1}
+            otherQuarterStreak={q2Streak1}
             initial="S"
             sugarItemsThisPeriod={stats2.sugarItemsThisPeriod}
             disabled={buttonsDisabled}
