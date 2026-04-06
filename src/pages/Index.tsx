@@ -264,8 +264,7 @@ const Index = () => {
             bestStreak={best1}
             otherStreak={streak2}
             initial="K"
-            freeDayUsedToday={freeDayUsedToday1}
-            freeDaysRemaining={stats1.freeDaysRemaining}
+            sugarItemsThisPeriod={stats1.sugarItemsThisPeriod}
             disabled={buttonsDisabled}
             disabledMessage={disabledMsg}
             onLog={handleLog}
@@ -281,8 +280,7 @@ const Index = () => {
             bestStreak={best2}
             otherStreak={streak1}
             initial="S"
-            freeDayUsedToday={freeDayUsedToday2}
-            freeDaysRemaining={stats2.freeDaysRemaining}
+            sugarItemsThisPeriod={stats2.sugarItemsThisPeriod}
             disabled={buttonsDisabled}
             disabledMessage={disabledMsg}
             onLog={handleLog}
