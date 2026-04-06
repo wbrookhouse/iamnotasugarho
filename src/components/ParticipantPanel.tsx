@@ -10,9 +10,10 @@ interface ParticipantPanelProps {
   otherName: string;
   ownPcts: { sugarFree: number; sugar: number };
   otherPcts: { sugarFree: number; sugar: number };
-  currentStreak: number;
+  quarterStreak: number;
+  totalStreak: number;
   bestStreak: number;
-  otherStreak: number;
+  otherQuarterStreak: number;
   initial: string;
   sugarItemsThisPeriod: number;
   disabled: boolean;
@@ -27,9 +28,10 @@ export default function ParticipantPanel({
   otherName,
   ownPcts,
   otherPcts,
-  currentStreak,
+  quarterStreak,
+  totalStreak,
   bestStreak,
-  otherStreak,
+  otherQuarterStreak,
   initial,
   sugarItemsThisPeriod,
   disabled,
@@ -63,9 +65,10 @@ export default function ParticipantPanel({
       <StreakCoinCard
         name={name}
         initial={initial}
-        currentStreak={currentStreak}
+        quarterStreak={quarterStreak}
+        totalStreak={totalStreak}
         bestStreak={bestStreak}
-        otherStreak={otherStreak}
+        otherQuarterStreak={otherQuarterStreak}
       />
 
       <VsRows

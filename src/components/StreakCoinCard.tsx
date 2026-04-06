@@ -1,46 +1,48 @@
 interface StreakCoinCardProps {
   name: string;
   initial: string;
-  currentStreak: number;
+  quarterStreak: number;
+  totalStreak: number;
   bestStreak: number;
-  otherStreak: number;
+  otherQuarterStreak: number;
 }
 
 export default function StreakCoinCard({
   name,
   initial,
-  currentStreak,
+  quarterStreak,
+  totalStreak,
   bestStreak,
-  otherStreak,
+  otherQuarterStreak,
 }: StreakCoinCardProps) {
-  const isLeader = currentStreak > otherStreak;
-  const isTied = currentStreak === otherStreak;
-  const isSecond = currentStreak < otherStreak;
+  const isLeader = quarterStreak > otherQuarterStreak;
+  const isTied = quarterStreak === otherQuarterStreak;
+  const isSecond = quarterStreak < otherQuarterStreak;
 
   const coinColor = isSecond
     ? 'bg-[#C0C0C0]'
-    : 'bg-[#D4AF37]'; // gold for leader or tie
+    : 'bg-[#D4AF37]';
 
-  const delta = Math.abs(currentStreak - otherStreak);
+  const delta = Math.abs(quarterStreak - otherQuarterStreak);
 
   let subline: string;
   let sublineClass: string;
   if (isTied) {
-    subline = `Tied: ${currentStreak}d`;
+    subline = `Tied: ${quarterStreak}d`;
     sublineClass = 'text-green-600 font-semibold';
   } else if (isLeader) {
-    subline = `In the lead: ${currentStreak}d`;
+    subline = `In the lead: ${quarterStreak}d`;
     sublineClass = 'text-green-600 font-semibold';
   } else {
-    subline = `In 2nd Place: ${currentStreak}d`;
+    subline = `In 2nd Place: ${quarterStreak}d`;
     sublineClass = 'text-slate-500';
   }
 
   const ariaLabel = isTied
-    ? `${name} current sugar-free streak ${currentStreak} days. Best ${bestStreak}. Tied at ${currentStreak} days.`
+    ? `${name} Q2 streak ${quarterStreak} days. Total streak ${totalStreak}. Best ${bestStreak}. Tied.`
     : isLeader
-      ? `${name} current sugar-free streak ${currentStreak} days. Best ${bestStreak}. In the lead by ${delta} day${delta !== 1 ? 's' : ''}.`
-      : `${name} current sugar-free streak ${currentStreak} days. Best ${bestStreak}. In second place.`;
+      ? `${name} Q2 streak ${quarterStreak} days. Total streak ${totalStreak}. Best ${bestStreak}. In the lead by ${delta} day${delta !== 1 ? 's' : ''}.`
+      : `${name} Q2 streak ${quarterStreak} days. Total streak ${totalStreak}. Best ${bestStreak}. In second place.`;
 
   return (
     <div
@@ -48,13 +50,15 @@ export default function StreakCoinCard({
       aria-label={ariaLabel}
       aria-live="polite"
     >
-      <div className="min-w-0">
+      <div className="min-w-0 space-y-0.5">
         <p className="text-foreground">
           <span className={`font-semibold ${isLeader || isTied ? 'text-green-600' : ''}`}>
-            {currentStreak}d
+            {quarterStreak}d
           </span>
-          {' '}Streak{' '}
-          <span className="text-muted-foreground text-sm">(Best: {bestStreak})</span>
+          {' '}Q2 Streak
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Total: {totalStreak}d · Best: {bestStreak}d
         </p>
         <p className={`text-sm ${sublineClass}`}>{subline}</p>
       </div>
