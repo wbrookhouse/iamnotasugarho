@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { getTodayLocal } from './dates';
+import { getTodayLocal, get14DayPeriod, START_DATE } from './dates';
 
 export async function getAppConfig() {
   const { data, error } = await supabase
