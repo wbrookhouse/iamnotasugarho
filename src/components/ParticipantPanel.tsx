@@ -8,17 +8,16 @@ interface ParticipantPanelProps {
   charity: string;
   participantId: string;
   otherName: string;
-  ownPcts: { sugarFree: number; sugar: number; freeDay: number };
-  otherPcts: { sugarFree: number; sugar: number; freeDay: number };
+  ownPcts: { sugarFree: number; sugar: number };
+  otherPcts: { sugarFree: number; sugar: number };
   currentStreak: number;
   bestStreak: number;
   otherStreak: number;
   initial: string;
-  freeDayUsedToday: boolean;
-  freeDaysRemaining: number;
+  sugarItemsThisPeriod: number;
   disabled: boolean;
   disabledMessage: string;
-  onLog: (participantId: string, type: 'SUGAR' | 'FREE_DAY') => Promise<void>;
+  onLog: (participantId: string, type: 'SUGAR') => Promise<void>;
 }
 
 export default function ParticipantPanel({
@@ -32,18 +31,12 @@ export default function ParticipantPanel({
   bestStreak,
   otherStreak,
   initial,
-  freeDayUsedToday,
-  freeDaysRemaining,
+  sugarItemsThisPeriod,
   disabled,
   disabledMessage,
   onLog,
 }: ParticipantPanelProps) {
   const sugarDebounceRef = useRef(false);
-
-  const handleFreeDay = useCallback(async () => {
-    if (disabled || freeDayUsedToday || freeDaysRemaining <= 0) return;
-    await onLog(participantId, 'FREE_DAY');
-  }, [disabled, freeDayUsedToday, freeDaysRemaining, participantId, onLog]);
 
   const handleSugar = useCallback(async () => {
     if (disabled || sugarDebounceRef.current) return;
@@ -56,6 +49,8 @@ export default function ParticipantPanel({
       }, 2000);
     }
   }, [disabled, participantId, onLog]);
+
+  const freeSugarAvailable = sugarItemsThisPeriod === 0;
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">
@@ -86,21 +81,14 @@ export default function ParticipantPanel({
         <div className="flex flex-col gap-2">
           <Button
             variant="outline"
-            className="w-full justify-center border-success text-success hover:bg-success hover:text-success-foreground"
-            onClick={handleFreeDay}
-            disabled={freeDayUsedToday || freeDaysRemaining <= 0}
-            aria-label={`Report ${name}'s free day`}
-          >
-            🟢 Report my Free Day
-            {freeDayUsedToday && <span className="ml-1 text-xs">(used today)</span>}
-          </Button>
-          <Button
-            variant="outline"
             className="w-full justify-center border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
             onClick={handleSugar}
             aria-label={`Report ${name}'s sugar item`}
           >
             🔴 Report my Sugar Item
+            {freeSugarAvailable && (
+              <span className="ml-1 text-xs text-muted-foreground">(free this period)</span>
+            )}
           </Button>
         </div>
       )}

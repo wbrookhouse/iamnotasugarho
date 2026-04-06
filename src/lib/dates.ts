@@ -2,7 +2,17 @@ import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 import { differenceInCalendarDays, parseISO } from 'date-fns';
 
 export const TIMEZONE = 'America/Halifax';
-export const START_DATE = '2026-02-24';
+export const START_DATE = '2026-04-01';
+export const Q2_START = '2026-04-01';
+export const Q2_END = '2026-06-30';
+
+/** Return which 14-day period (0-based) a given date falls into, relative to Q2_START */
+export function get14DayPeriod(dateStr: string): number {
+  const start = new Date(Q2_START + 'T00:00:00');
+  const d = new Date(dateStr + 'T00:00:00');
+  const diff = Math.floor((d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.floor(diff / 14);
+}
 export const END_DATE = '2026-12-31';
 
 export function getTodayLocal(): string {

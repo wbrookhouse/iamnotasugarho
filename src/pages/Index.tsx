@@ -35,9 +35,6 @@ function computeYtdPcts(
     (e) => e.participant_id === participantId && !e.deleted_at
   );
 
-  const freeDayDates = new Set(
-    pEvents.filter((e) => e.type === 'FREE_DAY').map((e) => e.date_local)
-  );
   const sugarDates = new Set(
     pEvents.filter((e) => e.type === 'SUGAR').map((e) => e.date_local)
   );
@@ -47,15 +44,12 @@ function computeYtdPcts(
   let totalDays = 0;
   let greenDays = 0;
   let redDays = 0;
-  let yellowDays = 0;
 
   const d = new Date(start);
   while (d <= end) {
     const ds = d.toISOString().slice(0, 10);
     totalDays++;
-    if (freeDayDates.has(ds)) {
-      yellowDays++;
-    } else if (sugarDates.has(ds)) {
+    if (sugarDates.has(ds)) {
       redDays++;
     } else {
       greenDays++;
@@ -63,30 +57,25 @@ function computeYtdPcts(
     d.setDate(d.getDate() + 1);
   }
 
-  if (totalDays === 0) return { sugarFree: 100, sugar: 0, freeDay: 0 };
+  if (totalDays === 0) return { sugarFree: 100, sugar: 0 };
 
   return {
     sugarFree: (greenDays / totalDays) * 100,
     sugar: (redDays / totalDays) * 100,
-    freeDay: (yellowDays / totalDays) * 100,
   };
 }
 
-/** Green-only streak: consecutive days with no SUGAR and no FREE_DAY, walking back from today. */
+/** Green-only streak: consecutive days with no SUGAR, walking back from today. */
 function computeGreenStreak(
   events: Event[],
   participantId: string,
   startDate: string,
   todayLocal: string
 ): number {
-  const pEvents = events.filter(
-    (e) => e.participant_id === participantId && !e.deleted_at
-  );
-  const freeDayDates = new Set(
-    pEvents.filter((e) => e.type === 'FREE_DAY').map((e) => e.date_local)
-  );
   const sugarDates = new Set(
-    pEvents.filter((e) => e.type === 'SUGAR').map((e) => e.date_local)
+    events.filter(
+      (e) => e.participant_id === participantId && !e.deleted_at && e.type === 'SUGAR'
+    ).map((e) => e.date_local)
   );
 
   let streak = 0;
@@ -96,7 +85,7 @@ function computeGreenStreak(
     d.setDate(d.getDate() - i);
     const ds = d.toISOString().slice(0, 10);
     if (ds < startDate) break;
-    if (freeDayDates.has(ds) || sugarDates.has(ds)) break;
+    if (sugarDates.has(ds)) break;
     streak++;
   }
   return streak;
@@ -108,14 +97,10 @@ function computeBestStreak(
   startDate: string,
   todayLocal: string
 ): number {
-  const pEvents = events.filter(
-    (e) => e.participant_id === participantId && !e.deleted_at
-  );
-  const freeDayDates = new Set(
-    pEvents.filter((e) => e.type === 'FREE_DAY').map((e) => e.date_local)
-  );
   const sugarDates = new Set(
-    pEvents.filter((e) => e.type === 'SUGAR').map((e) => e.date_local)
+    events.filter(
+      (e) => e.participant_id === participantId && !e.deleted_at && e.type === 'SUGAR'
+    ).map((e) => e.date_local)
   );
 
   let best = 0;
@@ -125,7 +110,7 @@ function computeBestStreak(
   const d = new Date(start);
   while (d <= end) {
     const ds = d.toISOString().slice(0, 10);
-    if (!freeDayDates.has(ds) && !sugarDates.has(ds)) {
+    if (!sugarDates.has(ds)) {
       current++;
       if (current > best) best = current;
     } else {
@@ -177,30 +162,13 @@ const Index = () => {
     return () => { supabase.removeChannel(channel); };
   }, [refresh]);
 
-  const handleLog = useCallback(async (participantId: string, type: 'SUGAR' | 'FREE_DAY') => {
+  const handleLog = useCallback(async (participantId: string, type: 'SUGAR') => {
     const name = participants.find((p) => p.id === participantId)?.display_name;
     try {
-      // Check free day constraints
-      if (type === 'FREE_DAY') {
-        const todayFreeDays = allEvents.filter(
-          (e) => e.participant_id === participantId && e.date_local === todayLocal && e.type === 'FREE_DAY' && !e.deleted_at
-        );
-        if (todayFreeDays.length > 0) {
-          toast.error('Free Day already used today.');
-          return;
-        }
-        const stats = calculateStats(allEvents, participantId, todayLocal);
-        if (stats.freeDaysRemaining <= 0) {
-          toast.error(`${name} has no free days remaining`);
-          return;
-        }
-      }
-
       const newEvent = await logEvent(participantId, type);
-      const label = type === 'SUGAR' ? 'Sugar Item' : 'Free Day';
       
       // Show undo toast
-      const toastId = toast.success(`Logged ${label} for ${name}`, {
+      const toastId = toast.success(`Logged Sugar Item for ${name}`, {
         duration: 10000,
         action: {
           label: 'Undo',
@@ -221,7 +189,7 @@ const Index = () => {
     } catch (err) {
       toast.error('Failed to log event');
     }
-  }, [participants, allEvents, todayLocal, refresh]);
+  }, [participants, todayLocal, refresh]);
 
   // Derived data
   const p1 = participants[0];
@@ -230,17 +198,13 @@ const Index = () => {
   const stats1 = useMemo(() => p1 ? calculateStats(allEvents, p1.id, todayLocal) : null, [allEvents, p1, todayLocal]);
   const stats2 = useMemo(() => p2 ? calculateStats(allEvents, p2.id, todayLocal) : null, [allEvents, p2, todayLocal]);
 
-  const pcts1 = useMemo(() => p1 ? computeYtdPcts(allEvents, p1.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0, freeDay: 0 }, [allEvents, p1, todayLocal]);
-  const pcts2 = useMemo(() => p2 ? computeYtdPcts(allEvents, p2.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0, freeDay: 0 }, [allEvents, p2, todayLocal]);
+  const pcts1 = useMemo(() => p1 ? computeYtdPcts(allEvents, p1.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0 }, [allEvents, p1, todayLocal]);
+  const pcts2 = useMemo(() => p2 ? computeYtdPcts(allEvents, p2.id, START_DATE, todayLocal) : { sugarFree: 100, sugar: 0 }, [allEvents, p2, todayLocal]);
 
   const streak1 = useMemo(() => p1 ? computeGreenStreak(allEvents, p1.id, START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
   const streak2 = useMemo(() => p2 ? computeGreenStreak(allEvents, p2.id, START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
   const best1 = useMemo(() => p1 ? computeBestStreak(allEvents, p1.id, START_DATE, todayLocal) : 0, [allEvents, p1, todayLocal]);
   const best2 = useMemo(() => p2 ? computeBestStreak(allEvents, p2.id, START_DATE, todayLocal) : 0, [allEvents, p2, todayLocal]);
-
-
-  const freeDayUsedToday1 = useMemo(() => p1 ? allEvents.some((e) => e.participant_id === p1.id && e.date_local === todayLocal && e.type === 'FREE_DAY' && !e.deleted_at) : false, [allEvents, p1, todayLocal]);
-  const freeDayUsedToday2 = useMemo(() => p2 ? allEvents.some((e) => e.participant_id === p2.id && e.date_local === todayLocal && e.type === 'FREE_DAY' && !e.deleted_at) : false, [allEvents, p2, todayLocal]);
 
   if (loading) {
     return (
@@ -251,9 +215,9 @@ const Index = () => {
   }
 
   const disabledMsg = beforeStart
-    ? 'Tracking begins on Feb 24, 2026'
+    ? 'Tracking begins on April 1, 2026'
     : afterEnd
-      ? 'Year complete'
+      ? 'Quarter complete'
       : '';
   const buttonsDisabled = beforeStart || afterEnd;
 
@@ -261,7 +225,7 @@ const Index = () => {
     <div className="min-h-screen bg-background p-4 md:p-8 max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <h1 className="text-2xl md:text-3xl font-bold text-center text-foreground">
-        🍬 Sugar-Free Challenge 2026
+        🍬 Sugar-Free Challenge 2026 — Q2
       </h1>
 
       {/* Legend */}
@@ -271,9 +235,6 @@ const Index = () => {
         </span>
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded-sm bg-destructive" /> Sugar
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-sm bg-warning" /> Free Day
         </span>
       </div>
 
@@ -303,8 +264,7 @@ const Index = () => {
             bestStreak={best1}
             otherStreak={streak2}
             initial="K"
-            freeDayUsedToday={freeDayUsedToday1}
-            freeDaysRemaining={stats1.freeDaysRemaining}
+            sugarItemsThisPeriod={stats1.sugarItemsThisPeriod}
             disabled={buttonsDisabled}
             disabledMessage={disabledMsg}
             onLog={handleLog}
@@ -320,8 +280,7 @@ const Index = () => {
             bestStreak={best2}
             otherStreak={streak1}
             initial="S"
-            freeDayUsedToday={freeDayUsedToday2}
-            freeDaysRemaining={stats2.freeDaysRemaining}
+            sugarItemsThisPeriod={stats2.sugarItemsThisPeriod}
             disabled={buttonsDisabled}
             disabledMessage={disabledMsg}
             onLog={handleLog}

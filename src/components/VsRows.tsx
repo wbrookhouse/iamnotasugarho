@@ -1,8 +1,8 @@
 interface VsRowsProps {
   ownName: string;
   otherName: string;
-  ownPcts: { sugarFree: number; sugar: number; freeDay: number };
-  otherPcts: { sugarFree: number; sugar: number; freeDay: number };
+  ownPcts: { sugarFree: number; sugar: number };
+  otherPcts: { sugarFree: number; sugar: number };
 }
 
 function DeltaPill({ delta, winnerIsHigher, ownName, category }: { delta: number; winnerIsHigher: boolean; ownName: string; category: string }) {
@@ -35,7 +35,6 @@ function DeltaPill({ delta, winnerIsHigher, ownName, category }: { delta: number
 export default function VsRows({ ownName, otherName, ownPcts, otherPcts }: VsRowsProps) {
   const sfDelta = Math.round(ownPcts.sugarFree - otherPcts.sugarFree);
   const sugarDelta = Math.round(ownPcts.sugar - otherPcts.sugar);
-  const fdDelta = Math.round(ownPcts.freeDay - otherPcts.freeDay);
 
   const rows = [
     {
@@ -43,7 +42,7 @@ export default function VsRows({ ownName, otherName, ownPcts, otherPcts }: VsRow
       own: Math.round(ownPcts.sugarFree),
       other: Math.round(otherPcts.sugarFree),
       delta: sfDelta,
-      higherIsWinner: true, // higher sugar-free % = better
+      higherIsWinner: true,
       ariaContext: 'sugar-free',
     },
     {
@@ -51,16 +50,8 @@ export default function VsRows({ ownName, otherName, ownPcts, otherPcts }: VsRow
       own: Math.round(ownPcts.sugar),
       other: Math.round(otherPcts.sugar),
       delta: sugarDelta,
-      higherIsWinner: false, // lower sugar % = better
+      higherIsWinner: false,
       ariaContext: 'sugar',
-    },
-    {
-      label: 'Free Days',
-      own: Math.round(ownPcts.freeDay),
-      other: Math.round(otherPcts.freeDay),
-      delta: fdDelta,
-      higherIsWinner: false, // lower free-day % = better
-      ariaContext: 'free days',
     },
   ];
 
