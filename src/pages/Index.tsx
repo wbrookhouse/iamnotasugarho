@@ -35,9 +35,6 @@ function computeYtdPcts(
     (e) => e.participant_id === participantId && !e.deleted_at
   );
 
-  const freeDayDates = new Set(
-    pEvents.filter((e) => e.type === 'FREE_DAY').map((e) => e.date_local)
-  );
   const sugarDates = new Set(
     pEvents.filter((e) => e.type === 'SUGAR').map((e) => e.date_local)
   );
@@ -47,15 +44,12 @@ function computeYtdPcts(
   let totalDays = 0;
   let greenDays = 0;
   let redDays = 0;
-  let yellowDays = 0;
 
   const d = new Date(start);
   while (d <= end) {
     const ds = d.toISOString().slice(0, 10);
     totalDays++;
-    if (freeDayDates.has(ds)) {
-      yellowDays++;
-    } else if (sugarDates.has(ds)) {
+    if (sugarDates.has(ds)) {
       redDays++;
     } else {
       greenDays++;
@@ -63,12 +57,11 @@ function computeYtdPcts(
     d.setDate(d.getDate() + 1);
   }
 
-  if (totalDays === 0) return { sugarFree: 100, sugar: 0, freeDay: 0 };
+  if (totalDays === 0) return { sugarFree: 100, sugar: 0 };
 
   return {
     sugarFree: (greenDays / totalDays) * 100,
     sugar: (redDays / totalDays) * 100,
-    freeDay: (yellowDays / totalDays) * 100,
   };
 }
 
