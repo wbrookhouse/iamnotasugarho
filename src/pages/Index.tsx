@@ -236,9 +236,6 @@ const Index = () => {
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded-sm bg-destructive" /> Sugar
         </span>
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-sm bg-warning" /> Free Day
-        </span>
       </div>
 
       {/* Summary Bar */}
