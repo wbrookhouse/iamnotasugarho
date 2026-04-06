@@ -162,30 +162,13 @@ const Index = () => {
     return () => { supabase.removeChannel(channel); };
   }, [refresh]);
 
-  const handleLog = useCallback(async (participantId: string, type: 'SUGAR' | 'FREE_DAY') => {
+  const handleLog = useCallback(async (participantId: string, type: 'SUGAR') => {
     const name = participants.find((p) => p.id === participantId)?.display_name;
     try {
-      // Check free day constraints
-      if (type === 'FREE_DAY') {
-        const todayFreeDays = allEvents.filter(
-          (e) => e.participant_id === participantId && e.date_local === todayLocal && e.type === 'FREE_DAY' && !e.deleted_at
-        );
-        if (todayFreeDays.length > 0) {
-          toast.error('Free Day already used today.');
-          return;
-        }
-        const stats = calculateStats(allEvents, participantId, todayLocal);
-        if (stats.freeDaysRemaining <= 0) {
-          toast.error(`${name} has no free days remaining`);
-          return;
-        }
-      }
-
       const newEvent = await logEvent(participantId, type);
-      const label = type === 'SUGAR' ? 'Sugar Item' : 'Free Day';
       
       // Show undo toast
-      const toastId = toast.success(`Logged ${label} for ${name}`, {
+      const toastId = toast.success(`Logged Sugar Item for ${name}`, {
         duration: 10000,
         action: {
           label: 'Undo',
@@ -206,7 +189,7 @@ const Index = () => {
     } catch (err) {
       toast.error('Failed to log event');
     }
-  }, [participants, allEvents, todayLocal, refresh]);
+  }, [participants, todayLocal, refresh]);
 
   // Derived data
   const p1 = participants[0];
