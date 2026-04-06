@@ -210,9 +210,9 @@ const Index = () => {
   }
 
   const disabledMsg = beforeStart
-    ? 'Tracking begins on Feb 24, 2026'
+    ? 'Tracking begins on April 1, 2026'
     : afterEnd
-      ? 'Year complete'
+      ? 'Quarter complete'
       : '';
   const buttonsDisabled = beforeStart || afterEnd;
 
